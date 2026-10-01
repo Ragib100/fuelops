@@ -175,3 +175,24 @@ class SimulateResponse(BaseModel):
 class GenericMessage(BaseModel):
     message: str
     detail: dict[str, Any] | None = None
+
+
+class RouteOut(BaseModel):
+    id: str
+    from_depot_id: str
+    to_station_id: str
+    transit_ticks: int
+    max_shipment_l: float
+    status: str
+
+
+class DepotOut(BaseModel):
+    id: str
+    name: str
+    region: str
+    status: str
+    inventory: dict[str, float]
+    capacity: dict[str, float]
+    inventory_pct: dict[str, int]
+    fill_pct: int
+    dispatch_per_tick: int

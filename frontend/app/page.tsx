@@ -1,59 +1,159 @@
 import Link from 'next/link';
-import { alerts, depots, stations } from '@/lib/data';
+import { apiServer } from '@/lib/api';
+import { fmtLiters, fmtPercent, fmtTick, fmtSimTime, FUEL_DISPLAY, mapFuelObject } from '@/lib/format';
 import { PageHeading, SectionTitle, StationLink, Tag } from '@/components/ui';
 
-export default function OverviewPage() {
+type OverviewStation = {
+  id: string;
+  name: string;
+  short: string;
+  region: string;
+  profile: string;
+  status: string;
+  risk: string;
+  inventory: Record<string, number>;
+  capacity: Record<string, number>;
+  inventory_pct: Record<string, number>;
+};
+
+type OverviewDepot = {
+  id: string;
+  name: string;
+  region: string;
+  status: string;
+  inventory_l: number;
+  capacity_l: number;
+  fill_pct: number;
+  dispatch_per_tick: number;
+};
+
+type OverviewEventBanner = {
+  type: string;
+  severity: string;
+  title: string;
+  detail: string;
+};
+
+type OverviewResponse = {
+  tick: number | null;
+  sim_time: string | null;
+  status: string | null;
+  kpis: {
+    service_level_pct: number;
+    active_alerts: number;
+    stations_at_risk: number;
+    allocations_in_transit: number;
+    allocation_liters: number;
+  };
+  stations: OverviewStation[];
+  depots: OverviewDepot[];
+  event_banner: OverviewEventBanner | null;
+  stale: boolean;
+};
+
+type Alert = {
+  id: string;
+  severity: string;
+  kind: string;
+  title: string;
+  detail: string;
+  station: string | null;
+  time: string;
+  color: string;
+};
+
+const PROFILE_LABEL: Record<string, string> = {
+  urban_high: 'Urban high',
+  industrial: 'Industrial',
+  highway: 'Highway',
+  regional: 'Regional',
+};
+
+const DEPOT_COLOR: Record<string, string> = {
+  'depot-gazipur': 'blue',
+  'depot-patiya': 'violet',
+};
+
+export default async function OverviewPage() {
+  let data: OverviewResponse | null = null;
+  let alerts: Alert[] = [];
+  try {
+    [data, alerts] = await Promise.all([
+      apiServer<OverviewResponse>('/api/overview'),
+      apiServer<Alert[]>('/api/alerts'),
+    ]);
+  } catch {
+    // Render a minimal error state rather than crashing the whole page.
+    return <ApiDownNotice />;
+  }
+
+  const k = data.kpis;
+  const stations = data.stations ?? [];
+  const depots = data.depots ?? [];
+  const banner = data.event_banner;
+  const riskTone = (r: string) =>
+    r === 'HIGH' ? 'red' : r === 'MEDIUM' ? 'amber' : 'green';
+
   return (
     <>
       <PageHeading
-        eyebrow="WEDNESDAY, OCTOBER 1 · SIMULATION RUN 01"
-        title="Good morning, Arif"
-        description="Here’s what’s happening across your fuel network right now."
-        action={<button className="button button-secondary">↻ &nbsp; Refresh snapshot</button>}
+        eyebrow={`SIMULATION RUN · ${data.status ?? '—'}`}
+        title="FuelOps control room"
+        description="Live view of the fuel supply network, alerts, and decision queue."
+        action={
+          <form action="/api/recommendations/refresh" method="post">
+            <button className="button button-secondary" type="submit">
+              ↻ &nbsp; Refresh snapshot
+            </button>
+          </form>
+        }
       />
       <div className="simulation-strip">
         <div className="strip-icon">◷</div>
         <div>
-          <b>Simulation running</b>
+          <b>{data.status === 'RUNNING' ? 'Simulation running' : data.status === 'PAUSED' ? 'Simulation paused' : 'Simulation'}</b>
           <span>
-            Tick 42 <i>·</i> 10:45 AM simulated time <i>·</i> 15 min / tick
+            {fmtTick(data.tick)} <i>·</i> {fmtSimTime(data.sim_time)} simulated time <i>·</i>{' '}
+            {data.stale ? 'STALE DATA' : '15 min / tick'}
           </span>
         </div>
         <span className="run-state">
-          <i /> LIVE
+          <i /> {data.stale ? 'STALE' : data.status === 'RUNNING' ? 'LIVE' : 'PAUSED'}
         </span>
-        <button>⏸</button>
+        <Link href="/demo" className="button-link">
+          {data.status === 'RUNNING' ? '⏸' : '▶'}
+        </Link>
       </div>
       <div className="kpi-grid">
         <Kpi
           label="SERVICE LEVEL"
-          value="94.2%"
-          trend="↑ 2.4%"
+          value={fmtPercent(k.service_level_pct)}
+          trend={k.service_level_pct >= 95 ? '↑ Healthy' : '↓ Watch'}
           note="vs. previous 10 ticks"
           icon="◉"
-          tone="green"
+          tone={k.service_level_pct >= 95 ? 'green' : 'amber'}
         />
         <Kpi
           label="ACTIVE ALERTS"
-          value="3"
-          trend="2 require action"
-          note="1 critical · 2 warnings"
+          value={String(k.active_alerts)}
+          trend={`${alerts.filter((a) => a.severity === 'Critical').length} critical`}
+          note={`${alerts.filter((a) => a.severity === 'Warning').length} warnings`}
           icon="◇"
-          tone="red"
+          tone={k.active_alerts > 0 ? 'red' : 'green'}
         />
         <Kpi
           label="STATIONS AT RISK"
-          value="2"
-          trend="1 high · 1 medium"
-          note="out of 4 stations"
+          value={String(k.stations_at_risk)}
+          trend={`${stations.filter((s) => s.risk === 'HIGH').length} high · ${stations.filter((s) => s.risk === 'MEDIUM').length} medium`}
+          note={`out of ${stations.length} stations`}
           icon="⌁"
-          tone="amber"
+          tone={k.stations_at_risk > 0 ? 'amber' : 'green'}
         />
         <Kpi
           label="ALLOCATIONS IN TRANSIT"
-          value="4"
-          trend="12,500 L"
-          note="across 3 active routes"
+          value={String(k.allocations_in_transit)}
+          trend={fmtLiters(k.allocation_liters)}
+          note="across active routes"
           icon="⇢"
           tone="blue"
         />
@@ -82,59 +182,55 @@ export default function OverviewPage() {
                 </tr>
               </thead>
               <tbody>
-                {stations.map((s) => (
-                  <tr key={s.id}>
-                    <td>
-                      <StationLink id={s.id}>{s.short}</StationLink>
-                      <small>{s.region}</small>
-                    </td>
-                    <td>
-                      <span className="online">
-                        <i />
-                        {s.status}
-                      </span>
-                    </td>
-                    {(['Diesel', 'Petrol', 'Octane'] as const).map((f) => (
-                      <td key={f}>
-                        <div className="inventory-cell">
-                          <b>{s.inventory[f].toLocaleString()} L</b>
-                          <span className="meter">
-                            <i
-                              className={
-                                s.risk === 'HIGH' && f === 'Diesel'
-                                  ? 'meter-red'
-                                  : s.risk === 'MEDIUM'
-                                    ? 'meter-amber'
-                                    : ''
-                              }
-                              style={{ width: `${(s.inventory[f] / s.capacity[f]) * 100}%` }}
-                            />
-                          </span>
-                          <small>
-                            {Math.round((s.inventory[f] / s.capacity[f]) * 100)}% capacity
-                          </small>
-                        </div>
+                {stations.map((s) => {
+                  const inv = mapFuelObject<number>(s.inventory);
+                  const pct = mapFuelObject<number>(s.inventory_pct);
+                  return (
+                    <tr key={s.id}>
+                      <td>
+                        <StationLink id={s.id}>{s.short}</StationLink>
+                        <small>{s.region}</small>
                       </td>
-                    ))}
-                    <td>
-                      <Tag tone={s.risk}>{s.risk}</Tag>
-                    </td>
-                  </tr>
-                ))}
+                      <td>
+                        <span className="online">
+                          <i />
+                          {s.status}
+                        </span>
+                      </td>
+                      {FUEL_DISPLAY.map((f) => (
+                        <td key={f}>
+                          <div className="inventory-cell">
+                            <b>{fmtLiters(inv[f])}</b>
+                            <span className="meter">
+                              <i
+                                className={
+                                  s.risk === 'HIGH' && f === 'Diesel'
+                                    ? 'meter-red'
+                                    : s.risk === 'MEDIUM' && f === 'Diesel'
+                                      ? 'meter-amber'
+                                      : ''
+                                }
+                                style={{ width: `${pct[f] ?? 0}%` }}
+                              />
+                            </span>
+                            <small>{pct[f] ?? 0}% capacity</small>
+                          </div>
+                        </td>
+                      ))}
+                      <td>
+                        <Tag tone={riskTone(s.risk)}>{s.risk}</Tag>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
           <div className="table-legend">
-            <span>
-              <i className="legend-dot green-dot" /> Healthy
-            </span>
-            <span>
-              <i className="legend-dot amber-dot" /> Monitor
-            </span>
-            <span>
-              <i className="legend-dot red-dot" /> At risk
-            </span>
-            <span>Inventory as of tick 42</span>
+            <span><i className="legend-dot green-dot" /> Healthy</span>
+            <span><i className="legend-dot amber-dot" /> Monitor</span>
+            <span><i className="legend-dot red-dot" /> At risk</span>
+            <span>Inventory as of {fmtTick(data.tick)}</span>
           </div>
         </section>
         <section className="panel alert-panel">
@@ -148,7 +244,7 @@ export default function OverviewPage() {
             }
           />
           <div className="alert-list">
-            {alerts.slice(0, 3).map((a) => (
+            {(alerts.length ? alerts.slice(0, 3) : []).map((a) => (
               <div className="alert-row" key={a.id}>
                 <span className={`alert-marker marker-${a.color}`}>
                   {a.color === 'red' ? '!' : a.color === 'amber' ? '△' : 'i'}
@@ -165,6 +261,9 @@ export default function OverviewPage() {
                 </div>
               </div>
             ))}
+            {alerts.length === 0 ? (
+              <div className="muted">No alerts at this tick.</div>
+            ) : null}
           </div>
         </section>
       </div>
@@ -181,23 +280,23 @@ export default function OverviewPage() {
           />
           <div className="depot-grid">
             {depots.map((d) => (
-              <div className="depot-card" key={d.name}>
+              <div className="depot-card" key={d.id}>
                 <div className="depot-top">
-                  <span className={`depot-icon ${d.color}`}>▤</span>
+                  <span className={`depot-icon ${DEPOT_COLOR[d.id] ?? 'blue'}`}>▤</span>
                   <Tag tone={d.status === 'OPEN' ? 'green' : 'amber'}>{d.status}</Tag>
                 </div>
                 <h3>{d.name}</h3>
-                <span className="muted">{d.region}</span>
+                <span className="muted">{d.region.replace('region-', '').replace(/\b\w/g, (c) => c.toUpperCase())}</span>
                 <div className="depot-amount">
-                  <b>{d.inventory}</b>
+                  <b>{fmtLiters(d.inventory_l)}</b>
                   <span>total inventory</span>
                 </div>
                 <div className="meter wide">
-                  <i style={{ width: `${d.fill}%` }} />
+                  <i style={{ width: `${d.fill_pct}%` }} />
                 </div>
                 <div className="depot-foot">
-                  <span>{d.fill}% capacity</span>
-                  <span>{d.dispatch}</span>
+                  <span>{d.fill_pct}% capacity</span>
+                  <span>{fmtLiters(d.dispatch_per_tick)} / tick</span>
                 </div>
               </div>
             ))}
@@ -213,34 +312,35 @@ export default function OverviewPage() {
               </Link>
             }
           />
-          <div className="event-card">
-            <div className="event-top">
-              <span className="event-symbol">⌁</span>
-              <Tag tone="amber">ACTIVE</Tag>
-              <span className="event-since">Started 3 ticks ago</span>
+          {banner ? (
+            <div className="event-card">
+              <div className="event-top">
+                <span className="event-symbol">⌁</span>
+                <Tag tone="amber">ACTIVE</Tag>
+              </div>
+              <h3>{banner.title}</h3>
+              <p>{banner.detail}</p>
+              <div className="event-foot">
+                <span>{banner.severity}</span>
+                <Link href="/alerts">Inspect event →</Link>
+              </div>
             </div>
-            <h3>Demand spike · Chattogram</h3>
-            <p>
-              Demand is elevated by <b>18%</b> across the region. Forecasts and allocation
-              priorities have been adjusted.
-            </p>
-            <div className="event-foot">
-              <span>2 stations affected</span>
-              <Link href="/alerts">Inspect event →</Link>
+          ) : (
+            <div className="event-card">
+              <div className="event-top">
+                <span className="event-symbol">✓</span>
+                <Tag tone="green">CALM</Tag>
+              </div>
+              <h3>No active disruptions</h3>
+              <p>All routes are available. Demand is at baseline.</p>
             </div>
-          </div>
-          <div className="insight-note">
-            <span>✳</span>{' '}
-            <span>
-              <b>Network insight</b>Mirpur has an alternate cross-region route via Patiya if the
-              Gazipur route is disrupted.
-            </span>
-          </div>
+          )}
         </section>
       </div>
     </>
   );
 }
+
 function Kpi({
   label,
   value,
@@ -268,5 +368,24 @@ function Kpi({
         <span>{note}</span>
       </div>
     </div>
+  );
+}
+
+function ApiDownNotice() {
+  return (
+    <>
+      <PageHeading
+        eyebrow="API OFFLINE"
+        title="Backend unreachable"
+        description="The frontend could not reach the FuelOps API."
+      />
+      <div className="demo-warning">
+        ⚠ &nbsp; <span>
+          <b>Cannot reach <code>BACKEND_URL</code>.</b> Confirm the API is running on{' '}
+          <code>http://localhost:8080</code> and that <code>BACKEND_URL</code> is set in{' '}
+          <code>frontend/.env.local</code>.
+        </span>
+      </div>
+    </>
   );
 }

@@ -22,7 +22,18 @@ from .config import settings
 from .db import init_db, ping_db
 from .ingest import run_ingest_loop
 from .metrics import REQUEST_LATENCY, render_metrics
-from .routes import alerts, decisions, demo, events, overview, recommendations, stations, system
+from .routes import (
+    alerts,
+    decisions,
+    demo,
+    depots,
+    events,
+    overview,
+    recommendations,
+    route_paths,
+    stations,
+    system,
+)
 
 # ---- logging setup -----------------------------------------------------------
 
@@ -112,6 +123,8 @@ app.include_router(recommendations.router)
 app.include_router(decisions.router)
 app.include_router(events.router)
 app.include_router(system.router)
+app.include_router(depots.router)
+app.include_router(route_paths.router)
 app.include_router(demo.router)
 
 
