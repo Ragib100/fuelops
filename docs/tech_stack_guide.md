@@ -667,6 +667,8 @@ services:
 volumes:
   pgdata:
 ```
+Simulator image: use the organizer's published image exactly as shown (`asifmahmoud414/bup-fuel-supply-simulator:1.0.0`, the only tag on Docker Hub at the time of writing) and never build or modify a simulator. Pull it before the event and again before the demo so you run what the judges run.
+
 Notes: `.env` (not committed) holds `DB_USER`, `DB_PASSWORD`, `OPERATOR_TOKEN`, optional `ANTHROPIC_API_KEY`; commit only `.env.example`. Set `SIMULATION_SPEED` low (or start paused and use `/admin/step`) so a simulated day isn't over in 12 seconds. Compose YAML above is a starting point; verify volume paths and image tags when you set it up.
 
 ### 6.3 CI/CD (GitHub Actions)

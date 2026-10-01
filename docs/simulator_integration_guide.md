@@ -47,6 +47,8 @@ docker compose up -d
 curl -s http://localhost:8000/v1/health
 ```
 
+**Image facts (checked on Docker Hub):** the repository `asifmahmoud414/bup-fuel-supply-simulator` is public, about 54 MB, and currently has a single tag, `1.0.0` (no `latest`). Always use the explicit tag. It had been updated shortly before the event, so `docker pull asifmahmoud414/bup-fuel-supply-simulator:1.0.0` again right before the event and again before the judged demo. Record the digest from `docker image inspect --format '{{index .RepoDigests 0}}' <image>` in your README; do not pin by digest, because judges run your submission against the published image. The Docker Hub page has no overview or docs, so this PDF and `http://localhost:8000/docs` are your only references. **You do not build or modify a simulator.**
+
 **Tip for your own stack:** put the simulator as a service in *your* `docker-compose.yml` (same image) so `docker compose up` launches everything. Use `http://simulator-api:8000` as the base URL inside the compose network.
 
 ---

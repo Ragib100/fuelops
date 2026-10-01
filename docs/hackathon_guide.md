@@ -112,7 +112,10 @@ POST /v1/allocations/{id}/cancel    (PENDING only)
 Admin (bypass faults): /admin/run|pause|toggle|step|reset, /admin/events, /admin/faults, /admin/faults/clear, /admin/audit
 ```
 
-- **Runs as a Docker image** (`asifmahmoud414/bup-fuel-supply-simulator:1.0.0`, port 8000, Swagger at `/docs`, console at `/admin`). One instance per participant; don't modify its source.
+- **Runs as a Docker image — you never build a simulator.** Image: `asifmahmoud414/bup-fuel-supply-simulator:1.0.0` (public on Docker Hub, about 54 MB). Port 8000, Swagger at `/docs`, console at `/admin`. One instance per participant; don't modify its source.
+  - Docker Hub currently lists **only the `1.0.0` tag** (no `latest`), so always reference `:1.0.0` explicitly.
+  - The repository was updated a few days before the event under that same tag, so **run `docker pull` again right before the event and before the demo**. Record the digest (`docker image inspect --format '{{index .RepoDigests 0}}' asifmahmoud414/bup-fuel-supply-simulator:1.0.0`) in the README, but don't pin by digest: judges run your submission against the published image.
+  - Pull it ahead of time so you are not depending on venue Wi-Fi.
 - **World is small and fixed:** 2 regions, 2 depots (Gazipur, Patiya), 4 stations (Mirpur, Tongi, Karnaphuli, Cox's Bazar), 6 routes, 3 fuels, 15-min ticks. Deterministic: same seed + actions + events → identical state.
 - **Crisis events map to the brief:** `shipment_delay`, `demand_spike`, `depot_constraint`, `route_disruption` / `station_outage`, plus `supply_shortfall`. **API faults** (`latency`, `unavailable`, `error_rate`, `stale_data`, `stream_disconnect`) are how organizers can attack your simulator dependency.
 - `GET /v1/metrics` gives ground-truth `service_level` and `allocation_failures` — your headline KPIs.
@@ -551,6 +554,7 @@ Integrate with the official BUP Fuel Supply Simulator and build the application,
 # Appendix C — Final Submission Checklist
 
 - [ ] `docker compose up` launches everything from a clean clone
+- [ ] Simulator image `asifmahmoud414/bup-fuel-supply-simulator:1.0.0` pulled and cached locally; no custom simulator built
 - [ ] Integrated with the **official** simulator APIs (`/v1/*` reads, SSE, `POST /v1/allocations` with idempotency keys)
 - [ ] Simulator faults handled (`unavailable`, `error_rate`, `latency`, `stale_data`, `stream_disconnect`) and 409 allocation errors handled/explained
 - [ ] Ground-truth KPIs shown from `/v1/metrics` (service level, allocation failures); policy compared against a baseline via deterministic reset + step
