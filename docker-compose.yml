@@ -1,0 +1,129 @@
+# FuelOps docker-compose — runs the full platform stack from a clean clone.
+#
+# Usage:
+#   cp .env.example .env       # then fill in DATABASE_URL + secrets
+#   docker compose up -d       # bring up simulator, api, frontend, prometheus, grafana
+#   make smoke                 # quick health-check
+#
+# Note: Postgres is NOT a service here — it's the remote Render instance whose
+# connection string you put in DATABASE_URL. This avoids port collisions with a
+# pre-existing local Postgres.
+#
+# Note: if you already have a manually-started simulator container named
+# `fuelops-sim` on host port 8000, stop it before this stack: `docker rm -f fuelops-sim`
+
+name: fuelops
+
+services:
+  # ---- organizer-provided simulator (the world) ----
+  simulator:
+    image: asifmahmoud414/bup-fuel-supply-simulator:1.0.0
+    container_name: fuelops-sim
+    ports:
+      - "8000:8000"
+    environment:
+      SIMULATOR_START_MODE: ${SIMULATOR_START_MODE:-paused}
+      SIMULATION_SPEED:     ${SIMULATION_SPEED:-2}
+      TICK_MINUTES:         ${TICK_MINUTES:-15}
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/v1/health').status==200 else 1)\""]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+
+  # ---- FastAPI backend (talks to simulator + remote Postgres) ----
+  api:
+    build:
+      context: ./api
+      dockerfile: Dockerfile
+    image: fuelops-api:latest
+    container_name: fuelops-api
+    ports:
+      - "8080:8080"
+    environment:
+      SIMULATOR_URL:           http://simulator:8000
+      DATABASE_URL:            ${DATABASE_URL:?DATABASE_URL is required (see .env.example)}
+      OPERATOR_TOKEN:          ${OPERATOR_TOKEN:-local-dev-token}
+      POLL_INTERVAL_SECONDS:   ${POLL_INTERVAL_SECONDS:-3}
+      HOST:                   0.0.0.0
+      PORT:                   8080
+      LOG_LEVEL:              ${LOG_LEVEL:-INFO}
+      CORS_ORIGINS:           ${CORS_ORIGINS:-}
+    depends_on:
+      simulator:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # ---- Next.js frontend ----
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_OPERATOR_TOKEN: ${OPERATOR_TOKEN:-local-dev-token}
+    image: fuelops-frontend:latest
+    container_name: fuelops-frontend
+    ports:
+      - "3000:3000"
+    environment:
+      BACKEND_URL:             http://api:8080
+      # Inlined into the JS bundle at build time; mirrors the ARG above.
+      NEXT_PUBLIC_OPERATOR_TOKEN: ${OPERATOR_TOKEN:-local-dev-token}
+      PORT:                    3000
+      HOSTNAME:                0.0.0.0
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # ---- Prometheus scrapes the API's /metrics endpoint ----
+  prometheus:
+    image: prom/prometheus:v2.55.1
+    container_name: fuelops-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./deploy/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.retention.time=2h
+    depends_on:
+      - api
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:9090/-/ready"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+
+  # ---- Grafana with the FuelOps dashboard pre-provisioned ----
+  grafana:
+    image: grafana/grafana:11.3.0
+    container_name: fuelops-grafana
+    ports:
+      - "3001:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER:     ${GRAFANA_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-admin}
+      GF_USERS_ALLOW_SIGN_UP:     "false"
+      GF_AUTH_ANONYMOUS_ENABLED:  "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: "Viewer"
+    volumes:
+      - grafana-storage:/var/lib/grafana
+      - ./deploy/grafana-provisioning:/etc/grafana/provisioning:ro
+      - ./deploy/grafana-dashboard.json:/var/lib/grafana/dashboards/fuelops.json:ro
+    depends_on:
+      prometheus:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000/api/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+
+volumes:
+  grafana-storage:
+    name: fuelops-grafana-storage

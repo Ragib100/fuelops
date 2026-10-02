@@ -1,0 +1,107 @@
+[
+  {
+    "fault": "unavailable",
+    "during_fault": {
+      "overall": "Healthy",
+      "fallback_active": true,
+      "stale": false,
+      "simulator_status": {
+        "name": "Fuel simulator",
+        "status": "Healthy",
+        "latency_ms": null,
+        "detail": "tick 8823"
+      },
+      "sse_status": {
+        "name": "SSE stream",
+        "status": "Connected",
+        "latency_ms": null,
+        "detail": "real SSE"
+      },
+      "overview_http_ok": true
+    }
+  },
+  {
+    "fault": "error_rate",
+    "during_fault": {
+      "overall": "Healthy",
+      "fallback_active": true,
+      "stale": false,
+      "simulator_status": {
+        "name": "Fuel simulator",
+        "status": "Healthy",
+        "latency_ms": null,
+        "detail": "tick 8850"
+      },
+      "sse_status": {
+        "name": "SSE stream",
+        "status": "Connected",
+        "latency_ms": null,
+        "detail": "real SSE"
+      },
+      "overview_http_ok": true
+    }
+  },
+  {
+    "fault": "latency",
+    "during_fault": {
+      "overall": "Healthy",
+      "fallback_active": false,
+      "stale": false,
+      "simulator_status": {
+        "name": "Fuel simulator",
+        "status": "Healthy",
+        "latency_ms": null,
+        "detail": "tick 8876"
+      },
+      "sse_status": {
+        "name": "SSE stream",
+        "status": "Connected",
+        "latency_ms": null,
+        "detail": "real SSE"
+      },
+      "overview_http_ok": true
+    }
+  },
+  {
+    "fault": "stream_disconnect",
+    "during_fault": {
+      "overall": "Healthy",
+      "fallback_active": false,
+      "stale": false,
+      "simulator_status": {
+        "name": "Fuel simulator",
+        "status": "Healthy",
+        "latency_ms": null,
+        "detail": "tick 8903"
+      },
+      "sse_status": {
+        "name": "SSE stream",
+        "status": "Connected",
+        "latency_ms": null,
+        "detail": "real SSE"
+      },
+      "overview_http_ok": true
+    }
+  },
+  {
+    "fault": "stale_data",
+    "during_fault": {
+      "overall": "Healthy",
+      "fallback_active": true,
+      "stale": true,
+      "simulator_status": {
+        "name": "Fuel simulator",
+        "status": "Healthy",
+        "latency_ms": null,
+        "detail": "tick 8996"
+      },
+      "sse_status": {
+        "name": "SSE stream",
+        "status": "Connected",
+        "latency_ms": null,
+        "detail": "real SSE"
+      },
+      "overview_http_ok": true
+    }
+  }
+]

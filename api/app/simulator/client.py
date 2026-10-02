@@ -57,6 +57,16 @@ class IdempotencyMismatch(SimulatorError):
 
 
 class _Cache:
+    """Per-key last-known-good store with a short TTL.
+
+    The TTL forces periodic re-fetching so that fault indicators like
+    `X-Simulator-Stale: true` are observed even when the cached value
+    is otherwise valid. Without TTL, a cached entry would mask the
+    simulator's current state for the entire process lifetime.
+    """
+
+    TTL_SECONDS = 3.0
+
     def __init__(self) -> None:
         self._store: dict[str, tuple[float, Any, bool]] = {}
 
@@ -67,11 +77,31 @@ class _Cache:
         v = self._store.get(key)
         if not v:
             return None
-        _, value, stale = v
+        ts, value, stale = v
+        if time.monotonic() - ts > self.TTL_SECONDS:
+            # Expired — force a re-fetch on the next call.
+            return None
         return value, stale
 
 
 CACHE = _Cache()
+
+
+# Tracks the most recent stale observation from the simulator. Set to True
+# whenever any /v1/* GET returns `X-Simulator-Stale: true`; reset to False
+# once the ingest loop has consumed the observation (see `ingest.py`).
+LAST_STALE: bool = False
+
+
+def is_data_stale() -> bool:
+    """True if the most recent simulator response was marked stale."""
+    return LAST_STALE
+
+
+def clear_stale_flag() -> None:
+    """Reset the stale flag after the observation has been propagated."""
+    global LAST_STALE
+    LAST_STALE = False
 
 
 # ---- Circuit breaker --------------------------------------------------------
@@ -129,6 +159,8 @@ class RealClient:
 
     async def _get_cached(self, path: str, params: dict | None = None) -> tuple[Any, bool]:
         key = f"GET {path} {params or {}}"
+        # Check & advance the circuit-breaker state (half-open on cooldown).
+        CB.before()
         cached = CACHE.get(key)
         if CB.is_open:
             if cached:
@@ -147,6 +179,9 @@ class RealClient:
         if r.status_code == 200:
             CB.record_success()
             stale = r.headers.get("X-Simulator-Stale", "").lower() == "true"
+            if stale:
+                global LAST_STALE
+                LAST_STALE = True
             body = r.json()
             CACHE.put(key, body, stale=stale)
             return body, stale

@@ -97,12 +97,14 @@ async def overview() -> OverviewResponse:
         if ev.get("status") == "ACTIVE":
             et = ev.get("type")
             params = ev.get("parameters", {}) or {}
+            region = (params.get("region_ids") or ["all"])[0]
+            region_label = region.replace("region-", "").title() if region != "all" else "all regions"
             if et == "demand_spike":
                 mult = params.get("multiplier", 1.5)
                 banner = OverviewEventBanner(
                     type="demand_spike",
                     severity="MEDIUM",
-                    title=f"Demand spike · {(params.get('region_ids') or ['all'])[0].replace('region-', '').title()}",
+                    title=f"Demand spike · {region_label}",
                     detail=f"Demand is elevated by {int((mult - 1) * 100)}% across the region. "
                            f"Forecasts and allocation priorities have been adjusted.",
                 )
@@ -110,15 +112,43 @@ async def overview() -> OverviewResponse:
                 banner = OverviewEventBanner(
                     type="route_disruption",
                     severity="HIGH",
-                    title="Route disruption active",
-                    detail="One or more supply routes are unavailable.",
+                    title=f"Route disruption · {region_label}",
+                    detail="One or more supply routes are unavailable. "
+                           "The optimizer has switched to alternate routes where possible.",
                 )
             elif et == "depot_constraint":
                 banner = OverviewEventBanner(
                     type="depot_constraint",
                     severity="MEDIUM",
-                    title="Depot constraint active",
-                    detail="A depot is operating with reduced capacity.",
+                    title=f"Depot constraint · {region_label}",
+                    detail="A depot is operating with reduced capacity. "
+                           "Allocations from this depot are throttled.",
+                )
+            elif et == "station_outage":
+                banner = OverviewEventBanner(
+                    type="station_outage",
+                    severity="HIGH",
+                    title=f"Station outage · {region_label}",
+                    detail="One or more stations are out of service. "
+                           "Demand at the affected stations is being unmet.",
+                )
+            elif et == "shipment_delay":
+                delay = params.get("delay_ticks", 2)
+                banner = OverviewEventBanner(
+                    type="shipment_delay",
+                    severity="MEDIUM",
+                    title=f"Shipment delay · {region_label}",
+                    detail=f"Inbound supply arrivals are pushed back by {delay} ticks. "
+                           "Depot inventories may dip before the next scheduled arrival.",
+                )
+            elif et == "supply_shortfall":
+                factor = params.get("factor", 0.5)
+                banner = OverviewEventBanner(
+                    type="supply_shortfall",
+                    severity="HIGH",
+                    title=f"Supply shortfall · {region_label}",
+                    detail=f"Inbound supply volumes are reduced to "
+                           f"{int(factor * 100)}% of the scheduled amount.",
                 )
             break
 

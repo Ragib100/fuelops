@@ -1,13 +1,13 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { apiServer } from '@/lib/api';
+import { apiServer, type ApiOpts } from '@/lib/api';
 
 export type ActionResult =
   | { ok: true; message: string }
   | { ok: false; error: string };
 
-async function call(path: string, init: RequestInit = {}): Promise<ActionResult> {
+async function call(path: string, init: ApiOpts = {}): Promise<ActionResult> {
   try {
     const data = await apiServer<{ message?: string }>(path, init);
     revalidatePath('/recommendations');

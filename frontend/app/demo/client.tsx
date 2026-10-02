@@ -19,8 +19,26 @@ export function DemoClient({
   const [tick, setTick] = useState(initialTick);
   const [fault, setFault] = useState('None');
   const [event, setEvent] = useState('Demand spike');
+  const [duration, setDuration] = useState('12');
+  const [scope, setScope] = useState('All regions');
   const [feedback, setFeedback] = useState<{ kind: 'ok' | 'err'; message: string } | null>(null);
   const [isPending, startTransition] = useTransition();
+
+  // Simulator event-type enum → slug.
+  // Supply shortfall isn't in the default UI but is reachable via the
+  // generic dropdown below.
+  const EVENT_OPTIONS = [
+    { label: 'Demand spike',     slug: 'demand_spike' },
+    { label: 'Route disruption',  slug: 'route_disruption' },
+    { label: 'Shipment delay',   slug: 'shipment_delay' },
+    { label: 'Depot constraint', slug: 'depot_constraint' },
+    { label: 'Station outage',   slug: 'station_outage' },
+    { label: 'Supply shortfall', slug: 'supply_shortfall' },
+  ];
+
+  const REGION_ID = scope === 'Dhaka Division' ? 'region-dhaka'
+    : scope === 'Chattogram Division' ? 'region-chattogram'
+    : null;
 
   const callAction = async (path: string, body?: Record<string, unknown>) => {
     setFeedback(null);
@@ -155,40 +173,63 @@ export function DemoClient({
           <label className="field-label">
             EVENT TYPE
             <select value={event} onChange={(e) => setEvent(e.target.value)} disabled={isPending}>
-              <option>Demand spike</option>
-              <option>Route disruption</option>
-              <option>Shipment delay</option>
-              <option>Depot constraint</option>
-              <option>Station outage</option>
+              {EVENT_OPTIONS.map((o) => (
+                <option key={o.slug}>{o.label}</option>
+              ))}
             </select>
           </label>
           <label className="field-label">
             AFFECTED AREA
-            <select disabled={isPending}>
+            <select value={scope} onChange={(e) => setScope(e.target.value)} disabled={isPending}>
               <option>All regions</option>
               <option>Dhaka Division</option>
               <option>Chattogram Division</option>
             </select>
           </label>
           <label className="field-label">
-            DURATION
-            <select disabled={isPending}>
-              <option>3 ticks</option>
-              <option>5 ticks</option>
-              <option>Until manually resolved</option>
+            DURATION (ticks)
+            <select value={duration} onChange={(e) => setDuration(e.target.value)} disabled={isPending}>
+              <option value="3">3 ticks (45 min sim)</option>
+              <option value="12">12 ticks (3 h sim)</option>
+              <option value="48">48 ticks (12 h sim)</option>
             </select>
           </label>
+          <p className="field-help">
+            Event injection calls <code>POST /api/admin/demo/events</code>. The next ingest poll will
+            surface the active event on <code>/alerts</code> and recompute recommendations.
+          </p>
           <div className="demo-button-row">
             <button
               className="button button-primary"
               type="button"
               disabled={isPending}
-              onClick={() =>
+              onClick={async () => {
+                // Fetch the current tick so the event activates on the next
+                // simulator step. Fall back to the page's initial tick if
+                // /api/overview is unavailable.
+                let startTick = tick ?? 0;
+                try {
+                  const ov = await fetch('/api/overview').then((r) => r.json());
+                  if (typeof ov?.tick === 'number') {
+                    startTick = ov.tick + 1;
+                    setTick(startTick);
+                  }
+                } catch {
+                  /* ignore */
+                }
+                const slug = EVENT_OPTIONS.find((o) => o.label === event)?.slug ?? 'demand_spike';
+                const parameters: Record<string, unknown> = {};
+                if (REGION_ID) {
+                  // Region-scoped events apply the multiplier / disruption to one region.
+                  parameters.region_ids = [REGION_ID];
+                }
                 callAction('/api/admin/demo/events', {
-                  kind: event.toLowerCase().replace(/ /g, '_'),
-                  severity: 'high',
-                })
-              }
+                  type: slug,
+                  start_tick: startTick,
+                  duration_ticks: Number(duration),
+                  parameters,
+                });
+              }}
             >
               ⚡ Inject event
             </button>
@@ -221,8 +262,8 @@ export function DemoClient({
               disabled={isPending || fault === 'None'}
               onClick={() =>
                 callAction('/api/admin/demo/faults', {
-                  fault: fault.toLowerCase().replace(/ /g, '_'),
-                  duration_s: 30,
+                  type: fault.toLowerCase().replace(/ /g, '_'),
+                  duration_seconds: 30,
                 })
               }
             >

@@ -1,0 +1,26 @@
+# Prometheus config for FuelOps.
+# Scrapes the API's /metrics endpoint every 5s. Self-scrape is enabled so
+# `up` queries can verify Prometheus itself is alive.
+
+global:
+  scrape_interval: 5s
+  evaluation_interval: 5s
+  external_labels:
+    monitor: fuelops
+
+scrape_configs:
+  - job_name: prometheus
+    static_configs:
+      - targets: ["localhost:9090"]
+
+  - job_name: fuelops-api
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["api:8080"]
+        labels:
+          service: fuelops-api
+
+  # The API's /api/system/status JSON endpoint isn't a Prometheus target, so
+  # we don't scrape it here. Component health is exposed via the
+  # `fuelops_request_seconds_count` counter and the system status page on
+  # the operator dashboard (UI-driven).

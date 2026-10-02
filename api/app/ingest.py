@@ -34,6 +34,8 @@ from .simulator.client import (
     FaultInjected,
     SimulatorError,
     TransientUnavailable,
+    clear_stale_flag,
+    is_data_stale,
     simulator_client,
 )
 from .simulator.sse import SSEConsumer
@@ -124,7 +126,6 @@ async def build_snapshot() -> dict[str, Any] | None:
         return None
 
     snapshot: dict[str, Any] = {}
-    stale_flag = False
     for k, (v, err) in results.items():
         if v is not None:
             snapshot[k] = v
@@ -132,6 +133,12 @@ async def build_snapshot() -> dict[str, Any] | None:
             # Use cached value where possible; the client already does this,
             # but if the error is fatal here, leave it out.
             log.debug("ingest.partial", extra={"endpoint": k, "error": str(err)})
+
+    # Read stale flag AFTER all GETs have run, so any 200+stale-header
+    # observations have been recorded by RealClient._get_cached. Then
+    # reset for the next cycle.
+    stale_flag = is_data_stale()
+    clear_stale_flag()
 
     inst = snapshot.get("instance", {}) or {}
     STORE.last_tick = inst.get("tick", STORE.last_tick)

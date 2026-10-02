@@ -1,0 +1,129 @@
+[
+  {
+    "event": "demand_spike",
+    "inject": {
+      "message": "admin events ok",
+      "detail": {
+        "id": 1,
+        "type": "demand_spike",
+        "start_tick": 13286,
+        "end_tick": 13294,
+        "status": "SCHEDULED",
+        "parameters": {
+          "multiplier": 1.8,
+          "region_ids": [
+            "region-dhaka"
+          ]
+        }
+      }
+    },
+    "banner": null,
+    "active_count": 0
+  },
+  {
+    "event": "route_disruption",
+    "inject": {
+      "message": "admin events ok",
+      "detail": {
+        "id": 2,
+        "type": "route_disruption",
+        "start_tick": 13297,
+        "end_tick": 13305,
+        "status": "SCHEDULED",
+        "parameters": {
+          "route_ids": [
+            "route-gazipur-mirpur"
+          ]
+        }
+      }
+    },
+    "banner": null,
+    "active_count": 0
+  },
+  {
+    "event": "depot_constraint",
+    "inject": {
+      "message": "admin events ok",
+      "detail": {
+        "id": 3,
+        "type": "depot_constraint",
+        "start_tick": 13310,
+        "end_tick": 13318,
+        "status": "SCHEDULED",
+        "parameters": {
+          "depot_ids": [
+            "depot-gazipur"
+          ]
+        }
+      }
+    },
+    "banner": null,
+    "active_count": 0
+  },
+  {
+    "event": "station_outage",
+    "inject": {
+      "message": "admin events ok",
+      "detail": {
+        "id": 4,
+        "type": "station_outage",
+        "start_tick": 13325,
+        "end_tick": 13333,
+        "status": "SCHEDULED",
+        "parameters": {
+          "station_ids": [
+            "station-mirpur"
+          ]
+        }
+      }
+    },
+    "banner": {
+      "type": "station_outage",
+      "severity": "HIGH",
+      "title": "Station outage \u00b7 all regions"
+    },
+    "active_count": 1
+  },
+  {
+    "event": "shipment_delay",
+    "inject": {
+      "message": "admin events ok",
+      "detail": {
+        "id": 5,
+        "type": "shipment_delay",
+        "start_tick": 13334,
+        "end_tick": 13342,
+        "status": "SCHEDULED",
+        "parameters": {
+          "delay_ticks": 3,
+          "depot_ids": [
+            "depot-gazipur"
+          ]
+        }
+      }
+    },
+    "banner": null,
+    "active_count": 0
+  },
+  {
+    "event": "supply_shortfall",
+    "inject": {
+      "message": "admin events ok",
+      "detail": {
+        "id": 6,
+        "type": "supply_shortfall",
+        "start_tick": 13346,
+        "end_tick": 13354,
+        "status": "SCHEDULED",
+        "parameters": {
+          "factor": 0.5,
+          "depot_ids": [
+            "depot-patiya"
+          ]
+        }
+      }
+    },
+    "banner": null,
+    "active_count": 0
+  }
+]

@@ -1,0 +1,17 @@
+node_modules
+.next
+out
+.env
+.env.local
+.env.*.local
+.git
+.gitignore
+.dockerignore
+Dockerfile
+README.md
+.eslintrc*
+.vscode
+.idea
+*.log
+.DS_Store
+.pnpm-store

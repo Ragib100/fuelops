@@ -123,13 +123,18 @@ async def simulate(rec_id: int) -> SimulateResponse:
         rec = s.get(Recommendation, rec_id)
         if not rec:
             raise HTTPException(status_code=404, detail="recommendation not found")
+        # Snapshot the fields we need while the session is open.
+        # Accessing ORM attributes after `session_scope()` exits raises
+        # "Instance … is not bound to a Session".
+        station_id = rec.station_id
+        fuel_type = rec.fuel_type
         payload = rec.payload or {}
     snap = STORE.last_snapshot or {}
     stations = {x["id"]: x for x in (snap.get("stations") or [])}
-    st = stations.get(rec.station_id)
+    st = stations.get(station_id)
     if not st:
         raise HTTPException(status_code=503, detail="station not in snapshot")
-    fuel = rec.fuel_type
+    fuel = fuel_type
     inv = st["inventory"].get(fuel, 0)
     cap = st["capacity"].get(fuel, 1)
     qty = float((payload.get("action") or {}).get("quantity_l") or 0)
